@@ -82,6 +82,11 @@ jobs:
             --name GitHubActionsTemporary \
             --start-ip-address ${{ steps.runner-ip.outputs.ip }} \
             --end-ip-address ${{ steps.runner-ip.outputs.ip }}
+           
+      - name: Wait for Azure SQL firewall
+        run: |
+          echo "Waiting for Azure SQL firewall rule to propagate..."
+          sleep 30       
 
       # ======================================================
       # RUN WEATHER PIPELINE
