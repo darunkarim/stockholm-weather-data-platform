@@ -10,6 +10,7 @@ from pathlib import Path
 # ---------------------------------------------------------
 
 STATION_ID = "98230"
+STATION_NAME = "Stockholm-Observatoriekullen A"
 PARAMETER_ID = "2"
 
 BASE_URL = (
@@ -33,7 +34,7 @@ def fetch_recent_temperature():
     print("SMHI RECENT TEMPERATURE DOWNLOAD")
     print("=" * 60)
 
-    print(f"Station: {STATION_ID}")
+    print(f"Station: {STATION_ID} - {STATION_NAME}")
     print(f"Parameter: {PARAMETER_ID}")
     print("Downloading recent data...")
 
@@ -54,15 +55,10 @@ def fetch_recent_temperature():
 # ---------------------------------------------------------
 
 def transform_data(data):
-    """
-    Transform SMHI CSV data into our project schema.
-
-    The SMHI CSV contains metadata before the actual
-    measurement table, so we first locate the table header.
-    """
 
     lines = data.splitlines()
 
+    # Find the actual measurement table header.
     header_index = None
 
     for i, line in enumerate(lines):
@@ -78,39 +74,125 @@ def transform_data(data):
     # Remove metadata before the actual measurement table.
     csv_data = "\n".join(lines[header_index:])
 
+    # Read the SMHI CSV.
     df = pd.read_csv(
         StringIO(csv_data),
         sep=";",
-        encoding="utf-8",
+        encoding="utf-8-sig",
     )
 
     print()
     print("SMHI CSV columns:")
     print(df.columns.tolist())
 
-    # Keep only the columns we need.
+    # -----------------------------------------------------
+    # Find SMHI columns dynamically
+    # -----------------------------------------------------
+
+    from_column = next(
+        (
+            column
+            for column in df.columns
+            if "Fr" in column
+            and "Datum" in column
+            and "UTC" in column
+        ),
+        None,
+    )
+
+    to_column = next(
+        (
+            column
+            for column in df.columns
+            if "Till" in column
+            and "Datum" in column
+            and "UTC" in column
+        ),
+        None,
+    )
+
+    reference_column = next(
+        (
+            column
+            for column in df.columns
+            if "Representativt dygn" in column
+        ),
+        None,
+    )
+
+    temperature_column = next(
+        (
+            column
+            for column in df.columns
+            if "Lufttemperatur" in column
+        ),
+        None,
+    )
+
+    quality_column = next(
+        (
+            column
+            for column in df.columns
+            if "Kvalitet" in column
+        ),
+        None,
+    )
+
+    required_columns = {
+        "from": from_column,
+        "to": to_column,
+        "reference_date": reference_column,
+        "temperature": temperature_column,
+        "quality": quality_column,
+    }
+
+    missing_columns = [
+        name
+        for name, column in required_columns.items()
+        if column is None
+    ]
+
+    if missing_columns:
+        raise ValueError(
+            f"Could not find required SMHI columns: {missing_columns}"
+        )
+
+    # -----------------------------------------------------
+    # Select and rename columns
+    # -----------------------------------------------------
+
     df = df[
         [
-            "Från Datum Tid (UTC)",
-            "Till Datum Tid (UTC)",
-            "Representativt dygn",
-            "Lufttemperatur",
-            "Kvalitet",
+            from_column,
+            to_column,
+            reference_column,
+            temperature_column,
+            quality_column,
         ]
     ]
 
-    # Rename columns to our project naming convention.
     df = df.rename(
         columns={
-            "Från Datum Tid (UTC)": "from_utc",
-            "Till Datum Tid (UTC)": "to_utc",
-            "Representativt dygn": "reference_date",
-            "Lufttemperatur": "temperature_c",
-            "Kvalitet": "quality",
+            from_column: "from_utc",
+            to_column: "to_utc",
+            reference_column: "reference_date",
+            temperature_column: "temperature_c",
+            quality_column: "quality",
         }
     )
 
-    # Convert timestamps.
+    # -----------------------------------------------------
+    # Add station metadata
+    # -----------------------------------------------------
+
+    df["station_id"] = STATION_ID
+    df["station_name"] = STATION_NAME
+    df["parameter_id"] = PARAMETER_ID
+
+    # -----------------------------------------------------
+    # Convert data types
+    # -----------------------------------------------------
+
     df["from_utc"] = pd.to_datetime(
         df["from_utc"],
         utc=True,
@@ -121,32 +203,59 @@ def transform_data(data):
         utc=True,
     )
 
-    # Convert reference date.
     df["reference_date"] = pd.to_datetime(
         df["reference_date"],
         errors="coerce",
     ).dt.date
 
-    # Convert temperature to numeric.
     df["temperature_c"] = pd.to_numeric(
         df["temperature_c"],
         errors="coerce",
     )
 
-    # Remove rows without a temperature.
+    # Remove rows without temperature.
     df = df.dropna(
         subset=["temperature_c"]
     )
 
-    # Remove duplicate dates.
-    df = df.drop_duplicates(
-        subset=["reference_date"]
-    )
+    # -----------------------------------------------------
+    # Final column order
+    # -----------------------------------------------------
+
+    df = df[
+        [
+            "station_id",
+            "station_name",
+            "parameter_id",
+            "from_utc",
+            "to_utc",
+            "reference_date",
+            "temperature_c",
+            "quality",
+        ]
+    ]
 
     # Sort chronologically.
     df = df.sort_values(
         "reference_date"
     ).reset_index(drop=True)
+
+    print()
+    print("Transformed columns:")
+    print(df.columns.tolist())
+
+    print()
+    print("Number of valid rows:", len(df))
+
+    print()
+    print("Date range:")
+    print(f"Start: {df['reference_date'].min()}")
+    print(f"End:   {df['reference_date'].max()}")
+
+    print()
+    print("Station:")
+    print(df["station_id"].iloc[0])
+    print(df["station_name"].iloc[0])
 
     return df
 
@@ -162,19 +271,25 @@ def validate_data(df):
     print("DATA VALIDATION")
     print("=" * 60)
 
-    print(f"Number of rows: {len(df)}")
+    print(f"Number of rows: {len(df):,}")
     print(f"Start date: {df['reference_date'].min()}")
     print(f"End date: {df['reference_date'].max()}")
 
     missing_temperatures = df["temperature_c"].isna().sum()
-    duplicate_dates = df["reference_date"].duplicated().sum()
+    duplicate_rows = df.duplicated().sum()
 
     print(f"Missing temperatures: {missing_temperatures}")
-    print(f"Duplicate dates: {duplicate_dates}")
+    print(f"Duplicate rows: {duplicate_rows}")
 
     assert len(df) > 0, "Dataset is empty!"
     assert missing_temperatures == 0, "Missing temperatures found!"
-    assert duplicate_dates == 0, "Duplicate dates found!"
+    assert duplicate_rows == 0, "Duplicate rows found!"
+
+    assert df["station_id"].notna().all(), \
+        "Missing station_id found!"
+
+    assert df["parameter_id"].notna().all(), \
+        "Missing parameter_id found!"
 
     print()
     print("Validation passed!")
@@ -202,7 +317,7 @@ def save_data(df):
     print("=" * 60)
 
     print(f"Saved to: {OUTPUT_FILE}")
-    print(f"Rows saved: {len(df)}")
+    print(f"Rows saved: {len(df):,}")
 
 
 # ---------------------------------------------------------

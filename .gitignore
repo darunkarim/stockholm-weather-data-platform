@@ -24,3 +24,11 @@ data/processed/
 *.egg-info/
 dist/
 build/
+
+# dbt generated files
+dbt_weather/target/
+dbt_weather/logs/
+
+# Logs
+logs/
+*.log

@@ -1,0 +1,230 @@
+version: 2
+
+models:
+
+  # -------------------------------------------------------
+  # OLD DAILY PIPELINE
+  # -------------------------------------------------------
+
+  - name: stg_silver_temperature
+
+    columns:
+
+      - name: reference_date
+        tests:
+          - not_null
+          - unique
+
+      - name: temperature_c
+        tests:
+          - not_null
+
+
+  - name: gold_temperature_daily
+
+    columns:
+
+      - name: reference_date
+        tests:
+          - not_null
+          - unique
+
+      - name: year
+        tests:
+          - not_null
+
+      - name: month
+        tests:
+          - not_null
+
+      - name: season
+        tests:
+          - not_null
+
+      - name: temperature_c
+        tests:
+          - not_null
+
+
+  # -------------------------------------------------------
+  # NEW HOURLY PIPELINE
+  # -------------------------------------------------------
+
+  - name: stg_silver_temperature_hourly
+
+    columns:
+
+      - name: station_id
+        tests:
+          - not_null
+
+      - name: observation_time_utc
+        tests:
+          - not_null
+
+      - name: temperature_c
+        tests:
+          - not_null
+
+
+  - name: gold_temperature_hourly
+
+    columns:
+
+      - name: station_id
+        tests:
+          - not_null
+
+      - name: observation_time_utc
+        tests:
+          - not_null
+
+      - name: observation_date
+        tests:
+          - not_null
+
+      - name: year
+        tests:
+          - not_null
+
+      - name: month
+        tests:
+          - not_null
+
+      - name: month_name
+        tests:
+          - not_null
+
+      - name: day
+        tests:
+          - not_null
+
+      - name: hour
+        tests:
+          - not_null
+
+      - name: season
+        tests:
+          - not_null
+
+      - name: temperature_c
+        tests:
+          - not_null
+
+
+  - name: gold_temperature_daily_hourly_source
+
+    columns:
+
+      - name: station_id
+        tests:
+          - not_null
+
+      - name: observation_date
+        tests:
+          - not_null
+
+      - name: year
+        tests:
+          - not_null
+
+      - name: month
+        tests:
+          - not_null
+
+      - name: month_name
+        tests:
+          - not_null
+
+      - name: season
+        tests:
+          - not_null
+
+      - name: observation_count
+        tests:
+          - not_null
+
+      - name: avg_temperature_c
+        tests:
+          - not_null
+
+      - name: min_temperature_c
+        tests:
+          - not_null
+
+      - name: max_temperature_c
+        tests:
+          - not_null
+
+  - name: stg_silver_precipitation
+    columns:
+      - name: station_id
+        tests:
+          - not_null
+
+      - name: reference_date
+        tests:
+          - not_null
+
+      - name: precipitation_mm
+        tests:
+          - not_null
+
+  - name: gold_precipitation_daily
+    columns:
+      - name: station_id
+        tests:
+          - not_null
+
+      - name: reference_date
+        tests:
+          - not_null
+
+      - name: precipitation_mm
+        tests:
+          - not_null
+            # -------------------------------------------------------
+  # WIND PIPELINE
+  # -------------------------------------------------------
+
+  - name: stg_silver_wind
+
+    columns:
+
+      - name: station_id
+        tests:
+          - not_null
+
+      - name: observation_time_utc
+        tests:
+          - not_null
+
+      - name: wind_speed_mps
+        tests:
+          - not_null
+
+
+  - name: gold_wind_daily
+
+    columns:
+
+      - name: reference_date
+        tests:
+          - not_null
+          - unique
+
+      - name: avg_wind_speed_mps
+        tests:
+          - not_null
+
+      - name: min_wind_speed_mps
+        tests:
+          - not_null
+
+      - name: max_wind_speed_mps
+        tests:
+          - not_null
+
+      - name: wind_observation_count
+        tests:
+          - not_null

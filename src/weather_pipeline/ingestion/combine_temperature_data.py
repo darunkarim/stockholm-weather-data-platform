@@ -55,36 +55,84 @@ def combine_data(historical, recent):
     print("COMBINING DATA")
     print("=" * 60)
 
-    # Combine the two datasets.
+    # Combine historical and recent data.
+    #
+    # The recent dataset overlaps with the historical
+    # dataset, so some observations exist in both files.
     combined = pd.concat(
         [historical, recent],
         ignore_index=True,
     )
 
-    print(f"Rows before removing duplicates: {len(combined):,}")
+    print(
+        f"Rows before removing duplicates: "
+        f"{len(combined):,}"
+    )
 
-    # Convert reference_date to a proper date.
+    # Convert date/time columns to proper datetime values.
+    combined["from_utc"] = pd.to_datetime(
+        combined["from_utc"],
+        utc=True,
+    )
+
+    combined["to_utc"] = pd.to_datetime(
+        combined["to_utc"],
+        utc=True,
+    )
+
     combined["reference_date"] = pd.to_datetime(
         combined["reference_date"]
     ).dt.date
 
-    # Remove duplicate days.
+    # -----------------------------------------------------
+    # REMOVE DUPLICATE OBSERVATIONS
+    # -----------------------------------------------------
     #
-    # The recent dataset overlaps with the historical
-    # dataset, so some dates occur in both files.
+    # We identify an observation using:
+    #
+    # station_id
+    # parameter_id
+    # from_utc
+    # to_utc
+    #
+    # This is better than using only reference_date because
+    # the same date could later contain multiple observations.
+    #
+    duplicate_columns = [
+        "station_id",
+        "parameter_id",
+        "from_utc",
+        "to_utc",
+    ]
+
+    duplicates_before = combined.duplicated(
+        subset=duplicate_columns
+    ).sum()
+
+    print(
+        f"Duplicate observations found: "
+        f"{duplicates_before:,}"
+    )
+
     combined = combined.drop_duplicates(
-        subset=["reference_date"],
+        subset=duplicate_columns,
         keep="last",
+    )
+
+    print(
+        f"Rows after removing duplicates: "
+        f"{len(combined):,}"
     )
 
     # Sort chronologically.
     combined = combined.sort_values(
-        "reference_date"
+        [
+            "station_id",
+            "parameter_id",
+            "reference_date",
+            "from_utc",
+        ]
     ).reset_index(drop=True)
-
-    print(
-        f"Rows after removing duplicates:  {len(combined):,}"
-    )
 
     return combined
 
@@ -107,15 +155,49 @@ def validate_data(df):
         df["temperature_c"].isna().sum()
     )
 
-    duplicate_dates = (
-        df["reference_date"].duplicated().sum()
+    duplicate_observations = df.duplicated(
+        subset=[
+            "station_id",
+            "parameter_id",
+            "from_utc",
+            "to_utc",
+        ]
+    ).sum()
+
+    missing_station_ids = df["station_id"].isna().sum()
+
+    missing_parameter_ids = df["parameter_id"].isna().sum()
+
+    print(f"Number of rows:             {len(df):,}")
+    print(f"Start date:                 {start_date}")
+    print(f"End date:                   {end_date}")
+    print(f"Missing temperatures:       {missing_temperatures}")
+    print(f"Missing station IDs:        {missing_station_ids}")
+    print(f"Missing parameter IDs:      {missing_parameter_ids}")
+    print(
+        f"Duplicate observations:    "
+        f"{duplicate_observations}"
     )
 
-    print(f"Number of rows:       {len(df):,}")
-    print(f"Start date:           {start_date}")
-    print(f"End date:             {end_date}")
-    print(f"Missing temperatures: {missing_temperatures}")
-    print(f"Duplicate dates:      {duplicate_dates}")
+    print()
+    print("Stations:")
+    print(
+        df[
+            ["station_id", "station_name"]
+        ].drop_duplicates().to_string(index=False)
+    )
+
+    print()
+    print("Parameters:")
+    print(
+        df[
+            ["parameter_id"]
+        ].drop_duplicates().to_string(index=False)
+    )
+
+    # -----------------------------------------------------
+    # ASSERTIONS
+    # -----------------------------------------------------
 
     assert len(df) > 0, "Dataset is empty!"
 
@@ -124,8 +206,16 @@ def validate_data(df):
     ), "Missing temperatures found!"
 
     assert (
-        duplicate_dates == 0
-    ), "Duplicate dates found!"
+        missing_station_ids == 0
+    ), "Missing station IDs found!"
+
+    assert (
+        missing_parameter_ids == 0
+    ), "Missing parameter IDs found!"
+
+    assert (
+        duplicate_observations == 0
+    ), "Duplicate observations found!"
 
     print()
     print("Validation passed!")
