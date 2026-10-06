@@ -49,8 +49,22 @@ Automation is handled through **GitHub Actions**, allowing the latest-weather pi
 
 ## Architecture
 
-![End-to-End Weather Data Pipeline](docs/images/pipeline-architecture.png)
+![Stockholm Weather Data Platform Architecture](docs/images/pipeline-architecture.png)
 
+
+## Power BI Dashboards
+
+### Live Weather
+
+![Live Weather Dashboard](docs/images/live-weather-dashboard.png)
+
+### Historical Weather Analytics
+
+![Historical Weather Analytics](docs/images/historical-weather-dashboard.png)
+
+### Station Information & Data Coverage
+
+![Station Information Dashboard](docs/images/station-information-dashboard.png)
 ---
 
 # Architecture
